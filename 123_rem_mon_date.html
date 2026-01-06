@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monthly Vehicle Usage Summary</title>
+    <style>
+        :root { --primary: #0f172a; --accent: #2563eb; --bg: #f8fafc; --success: #72b043; --export: #5b9bd5; --header-gold: #ffc000; --danger: #ef4444; --csv-green: #72b043; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); margin: 0; padding: 2px 5px; }
+        .container { max-width: 100%; margin: auto; }
+        
+        /* TABLE SCROLLBAR STYLING */
+        .table-section { 
+            background: white; 
+            border-radius: 8px; 
+            padding: 4px; 
+            border: 1px solid #e2e8f0;
+            height: 70vh; /* Adjusted slightly to give space to taller form */
+            overflow: auto;
+            scrollbar-width: thin;
+            scrollbar-color: transparent transparent;
+            transition: scrollbar-color 0.3s ease;
+        }
+
+        .table-section:hover { scrollbar-color: #cbd5e1 transparent; }
+        .table-section::-webkit-scrollbar { width: 8px; height: 8px; }
+        .table-section::-webkit-scrollbar-track { background: transparent; }
+        .table-section::-webkit-scrollbar-thumb { background: transparent; border-radius: 10px; border: 2px solid transparent; background-clip: content-box; }
+        .table-section:hover::-webkit-scrollbar-thumb, .table-section:active::-webkit-scrollbar-thumb { background-color: #cbd5e1; }
+
+        .sticky-panel { position: sticky; top: 0; z-index: 1000; background: var(--bg); padding-bottom: 2px; }
+        .app-header { display: flex; align-items: center; justify-content: space-between; padding: 2px 0; margin-bottom: 5px; gap: 10px; }
+        .logo-section { display: flex; flex-direction: column; align-items: center; min-width: 110px; }
+        .logo-text { font-weight: bold; color: #002060; font-size: 11px; text-align: center; line-height: 1.0; }
+        .sub-logo-text { font-size: 7px; color: #c00000; font-weight: bold; margin-top: 1px; }
+        
+        .main-title-bar { flex-grow: 1; background: linear-gradient(to bottom, #ffdb4d, var(--header-gold)); color: white; font-size: 15px; font-weight: bold; padding: 3px 15px; border-radius: 6px; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .backup-controls { display: flex; align-items: center; gap: 6px; }
+        .btn-header { border: none; border-radius: 4px; color: white; font-weight: bold; padding: 4px 10px; cursor: pointer; font-size: 11px; }
+        .btn-merge { background-color: var(--success); }
+        .btn-export { background-color: var(--export); }
+
+        .btn-download-circle { width: 26px; height: 26px; border: 1px solid var(--csv-green); border-radius: 50%; background: white; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        .btn-download-circle svg { width: 14px; height: 14px; fill: var(--csv-green); }
+
+        /* DATA ENTRY PANEL - INCREASED HEIGHT BY 1/4 */
+        .card { background: white; padding: 12px 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 8px; border: 1px solid #e2e8f0; }
+        .grid-form { display: grid; grid-template-columns: repeat(8, 1fr); gap: 10px; align-items: end; }
+        .form-group { display: flex; flex-direction: column; position: relative; }
+        label { font-size: 10px; font-weight: 800; color: #64748b; margin-bottom: 4px; text-transform: uppercase; }
+        input, select { padding: 6px 5px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 11.5px; outline: none; width: 100%; box-sizing: border-box; transition: border 0.2s; }
+        input:focus, select:focus { border-color: var(--accent); }
+        
+        .suggestions { position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #cbd5e1; z-index: 2000; max-height: 150px; overflow-y: auto; display: none; }
+        .suggestion-item { padding: 8px; cursor: pointer; font-size: 11px; border-bottom: 1px solid #f1f5f9; }
+
+        .submit-container { grid-column: 8; text-align: right; }
+        .btn-submit { cursor: pointer; border: none; padding: 8px 10px; border-radius: 4px; font-weight: 600; background: #2563eb; color: white; font-size: 11px; white-space: nowrap; width: 100%; }
+
+        /* TABLE SECTION */
+        table { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 2500px; }
+        thead th { position: sticky; top: 0; z-index: 100; background: #f1f5f9; color: #475569; font-size: 10px; text-align: left; padding: 7px 10px; border-bottom: 2px solid #e2e8f0; }
+        td { padding: 2px 10px; border-bottom: 1px solid #f1f5f9; font-size: 11.5px; white-space: nowrap; line-height: 1.2; }
+        .btn-action { border: none; background: none; cursor: pointer; font-size: 12px; padding: 0 4px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="sticky-panel">
+        <header class="app-header">
+            <div class="logo-section">
+                <div class="logo-text">SRI LANKA AIR FORCE</div>
+                <div class="sub-logo-text">QUALITY ASSURANCE INSPECTORATE</div>
+            </div>
+            <div class="main-title-bar">Monthly Vehicle Usage Summary</div>
+            <div class="backup-controls">
+                <button class="btn-header btn-merge" onclick="document.getElementById('importFile').click()">Merge Backup</button>
+                <button class="btn-header btn-export" onclick="exportBackup()">Export Backup</button>
+                <button class="btn-download-circle" onclick="downloadCSV()" title="Download CSV">
+                    <svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+                </button>
+                <input type="file" id="importFile" hidden accept=".json,.csv" onchange="handleImport(event)">
+            </div>
+        </header>
+
+        <div class="card">
+            <form id="fleetForm">
+                <input type="hidden" id="editIndex" value="-1">
+                <div class="grid-form">
+                    <div class="form-group"><label>Month</label><input type="month" id="rptDate" required></div>
+                    <div class="form-group"><label>Category</label><select id="mainLoc" onchange="updateSubLocations()" required></select></div>
+                    <div class="form-group"><label>Unit</label><select id="subLoc" onchange="resetVehicleField()" required></select></div>
+                    <div class="form-group">
+                        <label>Vehicle No</label>
+                        <input type="text" id="v_no" value="G-" autocomplete="off" onkeyup="handleVehicleInput(this)">
+                        <div id="v_suggestions" class="suggestions"></div>
+                    </div>
+                    <div class="form-group"><label>Type</label><input type="text" id="category"></div>
+                    <div class="form-group"><label>Make</label><input type="text" id="make"></div>
+                    <div class="form-group"><label>Model</label><input type="text" id="model"></div>
+                    <div class="form-group"><label>Fuel</label>
+                        <select id="f_type"><option>Diesel</option><option>Petrol</option><option>Hybrid</option></select>
+                    </div>
+
+                    <div class="form-group"><label>Fuel BOM</label><input type="number" id="f_bom" step="0.01"></div>
+                    <div class="form-group"><label>Fuel In</label><input type="number" id="f_in" step="0.01"></div>
+                    <div class="form-group"><label>Fuel EOM</label><input type="number" id="f_eom" step="0.01"></div>
+                    <div class="form-group"><label>Odo BOM</label><input type="number" id="o_bom"></div>
+                    <div class="form-group"><label>Odo EOM</label><input type="number" id="o_eom"></div>
+                    <div class="form-group"><label>Runs</label><input type="number" id="runs_input"></div>
+                    <div class="form-group"><label>Remarks</label><input type="text" id="remarks"></div>
+                    
+                    <div class="submit-container">
+                        <button type="button" id="submitBtn" class="btn-submit" onclick="addRecord()">Submit Data</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="table-section">
+        <div class="scroll-wrapper">
+            <table id="dataTable">
+                <thead>
+                    <tr>
+                        <th>No</th><th>Month</th><th>Category</th><th>Unit</th><th>Vehicle No</th>
+                        <th>Type</th><th>Make</th><th>Model</th><th>Fuel</th>
+                        <th>F-BOM</th><th>F-In</th><th>F-EOM</th>
+                        <th>O-BOM</th><th>O-EOM</th><th>Runs</th><th>Remarks</th>
+                        <th>Used</th><th>Mileage</th><th>Avg</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Logic remains identical to maintain functionality
+    function formatDisplayDate(dateStr) {
+        if(!dateStr) return "";
+        const [year, month] = dateStr.split('-');
+        const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        return `${months[parseInt(month)-1]}-${year.substring(2)}`;
+    }
+
+    const dateInput = document.getElementById('rptDate');
+    const now = new Date();
+    dateInput.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+    const locationData = {
+        "CBY": ["Acdy MT Cby", "No 24 RW Cby", "GTW Cby", "JC&SC Cby", "NCO Mgt Cby", "No 1 Sqn Cby", "No 6 ADRS Cby", "Hospital Cby", "No 1 LRW Cby", "No 3 Sqn Cby", "Other"],
+        "KAT": ["Base MT Kat", "Com_Res Kat", "MTR&OW Kat", "S&MD Kat", "E&TE Kat", "Hospital Kat", "Agro Kat", "M&EEW Kat", "CEW Kat", "No 26 RW Kat", "GEW Kat", "AEW Kat", "FS&FTMS Kat", "No 2 Sqn Kat", "No 5 Sqn Kat", "No 10 Sqn Kat", "AOW Kat", "Dental Kat", "ASD Kat", "Police Rider Kat", "No 60 INTW Kat", "CMW Kat", "No 1 ADRS Kat", "DPA Kat", "Colour Sqn Kat", "RMW Kat", "EP&AU Kat", "No 3 LRW Kat", "No 48 K9 Wing Kat", "RDW Kat", "CBRNEW Kat", "AR&OW Kat", "Other"],
+        "RMA": ["Base MT Rma", "No 4 Sqn Rma", "No 8 Sqn Rma", "ITW Rma", "Helitours Rma", "E&TE Rma", "CWPU Rma", "Hospital Rma", "ASW Rma", "AFM Rma", "AFCW Rma", "No 2 LRW Rma", "No 61 Flt Rma", "CEMU Rma", "FSI Rma", "Other"],
+        "ANU": ["Base Mt Anu", "No 6 Sqn Anu", "No 33 LBAD Wing Anu", "Other"],
+        "VNA": ["Base Mt Vna", "No 2 ADRS Vna", "No 111 Sqn Vna", "Det. Mamad. Vna", "No 62 INTW Vna", "MTR&OW Vna", "No 23 RW Vna", "Other"],
+        "HIN": ["Base Mt Hin", "No 2 SMD Hin", "No 7 Sqn Hin", "No 9 Sqn Hin", "Other"],
+        "DLA": ["CTS MT Dla", "Other"],
+        "EKA": ["TTS MT Eka", "Printing Eka", "CRO Eka", "No 2 ITW Eka", "Other"],
+        "CBO": ["AOC Pool SJP", "C of S SJP", "Dy C of S SJP", "DGO SJP", "DAO SJP", "DT SJP", "DAE SJP", "DGE SJP", "DGE&CE SJP", "DA SJP", "DL SJP", "D Wel SJP", "DHS SJP", "DCE SJP", "OCDO SJP", "DDS SJP", "Dte. Provost SJP", "D Legal SJP", "PD Section SJP", "DIT SJP", "Air Secretariat SJP", "QAI SJP", "Stn MT SJP", "DF SJP", "No 32 LBADW SJP", "Dental SJP", "Hospital SJP", "No 28 RW SJP", "Dte. Sport SJP", "AID SJP", "VAF SJP", "MOD SJP", "CDPU SJP", "DR & D SJP", "DSC & SC", "Det. Battara SJP", "Fire SJP", "P&R SJP", "DA Register SJP", "No 623 Int SJP", "SVU SJP", "UN Mission SJP", "Dte. Midia SJP", "Dte. Buget SJP", "CWF SJP", "NDC", "SABF SJP", "SPMU SJP", "NPAD SJP", "DADCC SJP", "IAD SJP", "Other"],
+        "VANNI": ["MT Vanni", "Other"],
+        "PLY": ["Stn MT Ply", "Other"],
+        "AMP": ["Stn Mt Amp", "Det. Pana. Amp", "Det. Mahi. Amp", "PTS Amp", "Det. Nila. Amp", "Other"],
+        "SGR": ["Stn MT Sgr", "Other"],
+        "DGN": ["Stn MT Dgn", "Other"],
+        "PLV": ["Stn MT Plv", "No 5 ADRS Plv", "Other"],
+        "IRM": ["Stn MT Irm", "ADGTS Irm", "Other"],
+        "MTV": ["Det. MT Mtv", "Other"],
+        "BCL": ["Stn MT Bcl", "Other"],
+        "WLA": ["Stn MT Wla", "No 3 ADRS Wla", "Det. Math. Wla", "No 41 RW Wla", "Other"],
+        "KGL": ["Stn MT Kgl", "Other"],
+        "KTK": ["Stn MT Ktk", "Other"],
+        "MOW": ["Stn MT Mow", "RSF Mow", "Agro Mow", "Other"],
+        "MIR": ["Stn MT Mir", "No 42 RW Mir", "AOC & CC Mir", "Other"],
+        "BIA": ["Stn MT Bia", "Other"],
+        "PGL": ["Stn MT Pgl", "Other"]
+    };
+    
+    let fleet = JSON.parse(localStorage.getItem('fleetDB_v7')) || [];
+
+    const mainSelect = document.getElementById('mainLoc');
+    mainSelect.innerHTML = '<option value="">Category...</option>' + 
+        Object.keys(locationData).sort().map(c => `<option value="${c}">${c}</option>`).join('');
+
+    function updateSubLocations() {
+        const subSelect = document.getElementById('subLoc');
+        const selectedCat = mainSelect.value;
+        subSelect.innerHTML = '<option value="">Unit...</option>' + 
+            (locationData[selectedCat] ? locationData[selectedCat].sort().map(s => `<option value="${s}">${s}</option>`).join('') : '');
+    }
+
+    function handleVehicleInput(input) {
+        if (!input.value.startsWith("G-")) input.value = "G-";
+        const val = input.value.toUpperCase();
+        const suggDiv = document.getElementById('v_suggestions');
+        if (val.length < 3) { suggDiv.style.display = 'none'; return; }
+        const matches = [...new Set(fleet.filter(v => v.v_no.toUpperCase().includes(val)).map(v => v.v_no))];
+        if (matches.length > 0) {
+            suggDiv.innerHTML = matches.map(m => `<div class="suggestion-item" onclick="selectVehicle('${m}')">${m}</div>`).join('');
+            suggDiv.style.display = 'block';
+        } else { suggDiv.style.display = 'none'; }
+    }
+
+    function selectVehicle(vNo) {
+        document.getElementById('v_no').value = vNo;
+        document.getElementById('v_suggestions').style.display = 'none';
+        const history = fleet.filter(v => v.v_no === vNo);
+        if (history.length > 0) {
+            history.sort((a, b) => b.reportPeriod.localeCompare(a.reportPeriod));
+            const last = history[0]; 
+            document.getElementById('category').value = last.category || "";
+            document.getElementById('make').value = last.make || "";
+            document.getElementById('model').value = last.model || "";
+            document.getElementById('f_type').value = last.f_type || "Diesel";
+            document.getElementById('f_bom').value = last.f_eom || 0;
+            document.getElementById('o_bom').value = last.o_eom || 0;
+            if(last.cat) {
+                document.getElementById('mainLoc').value = last.cat;
+                updateSubLocations();
+                document.getElementById('subLoc').value = last.sub;
+            }
+        }
+    }
+
+    function addRecord() {
+        const editIdx = parseInt(document.getElementById('editIndex').value);
+        const entry = {
+            reportPeriod: document.getElementById('rptDate').value,
+            cat: document.getElementById('mainLoc').value,
+            sub: document.getElementById('subLoc').value,
+            v_no: document.getElementById('v_no').value,
+            category: document.getElementById('category').value,
+            make: document.getElementById('make').value,
+            model: document.getElementById('model').value,
+            f_type: document.getElementById('f_type').value,
+            f_bom: parseFloat(document.getElementById('f_bom').value) || 0,
+            f_in: parseFloat(document.getElementById('f_in').value) || 0,
+            f_eom: parseFloat(document.getElementById('f_eom').value) || 0,
+            o_bom: parseFloat(document.getElementById('o_bom').value) || 0, 
+            o_eom: parseFloat(document.getElementById('o_eom').value) || 0, 
+            runs: parseFloat(document.getElementById('runs_input').value) || 0,
+            remarks: document.getElementById('remarks').value || ""
+        };
+        if (editIdx > -1) {
+            fleet[editIdx] = entry;
+            document.getElementById('editIndex').value = "-1";
+            document.getElementById('submitBtn').innerText = "Submit Data";
+        } else { fleet.push(entry); }
+        saveAndRender();
+        document.getElementById('fleetForm').reset();
+        document.getElementById('rptDate').value = entry.reportPeriod;
+        document.getElementById('v_no').value = "G-";
+    }
+
+    function editRecord(idx) {
+        const item = fleet[idx];
+        document.getElementById('rptDate').value = item.reportPeriod;
+        document.getElementById('mainLoc').value = item.cat;
+        updateSubLocations();
+        document.getElementById('subLoc').value = item.sub;
+        document.getElementById('v_no').value = item.v_no;
+        document.getElementById('category').value = item.category;
+        document.getElementById('make').value = item.make;
+        document.getElementById('model').value = item.model;
+        document.getElementById('f_type').value = item.f_type;
+        document.getElementById('f_bom').value = item.f_bom;
+        document.getElementById('f_in').value = item.f_in;
+        document.getElementById('f_eom').value = item.f_eom;
+        document.getElementById('o_bom').value = item.o_bom;
+        document.getElementById('o_eom').value = item.o_eom;
+        document.getElementById('runs_input').value = item.runs;
+        document.getElementById('remarks').value = item.remarks;
+        document.getElementById('editIndex').value = idx;
+        document.getElementById('submitBtn').innerText = "Update Record";
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function deleteRecord(idx) {
+        if (confirm("Delete this entry?")) { fleet.splice(idx, 1); saveAndRender(); }
+    }
+
+    function saveAndRender() { localStorage.setItem('fleetDB_v7', JSON.stringify(fleet)); renderTable(); }
+
+    function renderTable() {
+        const sorted = fleet.map((item, index) => ({ ...item, originalIndex: index }))
+                           .sort((a, b) => b.reportPeriod.localeCompare(a.reportPeriod));
+        document.getElementById('tableBody').innerHTML = sorted.map((v, i) => {
+            const fUsed = (v.f_bom + v.f_in) - v.f_eom;
+            const dist = v.o_eom - v.o_bom;
+            const avg = fUsed > 0 ? (dist / fUsed).toFixed(2) : "0.00";
+            return `<tr><td>${i+1}</td><td>${formatDisplayDate(v.reportPeriod)}</td><td>${v.cat}</td><td>${v.sub}</td><td><b>${v.v_no}</b></td><td>${v.category}</td><td>${v.make}</td><td>${v.model}</td><td>${v.f_type}</td><td>${v.f_bom}</td><td>${v.f_in}</td><td>${v.f_eom}</td><td>${v.o_bom}</td><td>${v.o_eom}</td><td>${v.runs}</td><td>${v.remarks}</td><td><b>${fUsed.toFixed(2)}</b></td><td><b>${dist}</b></td><td><b>${avg}</b></td><td><button class="btn-action" onclick="editRecord(${v.originalIndex})">✎</button><button class="btn-action" style="color:red" onclick="deleteRecord(${v.originalIndex})">🗑</button></td></tr>`;
+        }).join('');
+    }
+
+    function exportBackup() {
+        const blob = new Blob([JSON.stringify(fleet, null, 2)], { type: "application/json" });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = `Fleet_Backup.json`;
+        link.click();
+    }
+
+    function downloadCSV() {
+        const headers = ["No", "Month", "Category", "Unit", "Vehicle No", "Type", "Make", "Model", "Fuel", "F-BOM", "F-In", "F-EOM", "O-BOM", "O-EOM", "Runs", "Remarks"];
+        const rows = fleet.map((v, i) => [i+1, v.reportPeriod, v.cat, v.sub, v.v_no, v.category, v.make, v.model, v.f_type, v.f_bom, v.f_in, v.f_eom, v.o_bom, v.o_eom, v.runs, v.remarks]);
+        const csv = "data:text/csv;charset=utf-8," + [headers, ...rows].map(e => e.join(",")).join("\n");
+        const link = document.createElement("a");
+        link.href = encodeURI(csv);
+        link.download = "Fleet_Data.csv";
+        link.click();
+    }
+
+    function handleImport(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try { fleet = JSON.parse(e.target.result); saveAndRender(); } catch (err) { alert("Invalid file."); }
+        };
+        reader.readAsText(file);
+    }
+
+    function resetVehicleField() { document.getElementById('v_no').value = "G-"; }
+    window.onload = renderTable;
+</script>
+
+</body>
+</html>
